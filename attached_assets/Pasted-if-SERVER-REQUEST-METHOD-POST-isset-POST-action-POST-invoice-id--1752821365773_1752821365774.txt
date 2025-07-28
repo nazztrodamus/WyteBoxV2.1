@@ -1,0 +1,402 @@
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'], $_POST['invoice_id'])) {
+    $action = $_POST['action'];
+    $invoice_id = intval($_POST['invoice_id']);
+    $message = [];
+
+    // Fetch the imported item
+    $stmt = $conn->prepare("SELECT * FROM zra_imported_items WHERE id = ?");
+    $stmt->bind_param('i', $invoice_id);
+    $stmt->execute();
+    $importedData = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$importedData) {
+        echo json_encode(['message' => ['Error: Item data not found.']]);
+        exit;
+    }
+
+    // Check for the item in `zra_item` table
+    $itemNm = $importedData['itemNm'];
+    $itemCheckStmt = $conn->prepare("SELECT * FROM zra_item WHERE itemNm = ?");
+    $itemCheckStmt->bind_param('s', $itemNm);
+    $itemCheckStmt->execute();
+    $itemData = $itemCheckStmt->get_result()->fetch_assoc();
+    $itemCheckStmt->close();
+
+    if (!$itemData) {
+        echo json_encode(['message' => ['Error: Item does not exist in zra_item. Please create it first.']]);
+        exit;
+    }
+
+    // Determine the payload's `imptItemSttsCd` value
+   $imptItemsttsCd = ($action === 'approve') ? '3' : (($action === 'reject') ? '4' : null);
+
+   if ($imptItemsttsCd === null) {
+      echo json_encode(['message' => ['Error: Invalid action.']]);
+      exit;
+   }
+
+   // Update the `zra_imported_items` table's `imptItemSttsCd` field
+   $updateStatusQuery = $conn->prepare("UPDATE zra_imported_items SET imptItemSttsCd = ?, prcd = 1 WHERE id = ?");
+   $updateStatusQuery->bind_param('si', $imptItemsttsCd, $invoice_id);
+   if (!$updateStatusQuery->execute()) {
+      echo json_encode(['message' => ['Error: Failed to update item status in the database.']]);
+      exit;
+   }
+   $updateStatusQuery->close();
+   
+   // Prepare payload
+   $payload = [
+      "tpin" => $itemData['tpin'],
+      "bhfId" => $itemData['bhfId'],
+      "taskCd" => $importedData['taskCd'],
+      "dclDe" => $importedData['dclDe'],
+      "importItemList" => [
+         [
+               "itemSeq" => $importedData['itemSeq'],
+               "hsCd" => $importedData['hsCd'],
+               "itemClsCd" => $itemData['itemClsCd'],
+               "itemCd" => $itemData['itemCd'],
+               "imptItemSttsCd" => $imptItemsttsCd,
+               "remark" => $itemData['remark'] ?? null,
+               "modrNm" => $itemData['modrNm'] ?? '',
+               "modrId" => $itemData['modrId'] ?? ''
+         ]
+      ]
+   ];
+
+    // Log the payload for debugging
+    $jsonPayload = json_encode($payload, JSON_PRETTY_PRINT);
+    echo "<script>console.log('Mainpayload: ', " . json_encode($jsonPayload) . ");</script>";
+    //echo "<pre>Payload: " . htmlspecialchars($jsonPayload) . "</pre>";
+
+    // Send payload to ZRA endpoint
+    $url = 'http://localhost:8080/vsdc/imports/updateImportItems';
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, [
+        'Content-Type: application/json',
+        'Content-Length: ' . strlen($jsonPayload),
+    ]);
+
+    $response = curl_exec($ch);
+    $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    // Log and display the response
+    echo "<script>console.log('Success: ', " . $response . ");</script>";
+    
+    // Decode and process the response
+    $responseData = json_decode($response, true);
+    if ($httpCode === 200 && isset($responseData['resultCd']) && $responseData['resultCd'] === '000') {
+        $message[] = $action === 'approve' ? 'Item approved successfully.' : 'Item rejected successfully.';
+        if ($action === 'approve') {
+            $sarNo = 1;
+            $orgSarNo = 1;
+      
+            // Check if the table exists
+            $tableCheck = mysqli_query($conn, "SHOW TABLES LIKE 'zra_save_stock_item'");
+            if (mysqli_num_rows($tableCheck) > 0) {
+               // Table exists, now check for the maximum orgSarNo in the table
+               $result = mysqli_query($conn, "SELECT MAX(orgSarNo) as maxOrgSarNo FROM zra_save_stock_item");
+               if ($result) {
+                  $row = mysqli_fetch_assoc($result);
+                  if (!is_null($row['maxOrgSarNo'])) {
+                        // Increment max orgSarNo by 1
+                        $orgSarNo = $row['maxOrgSarNo'] + 1;
+                  } else {
+                        // No record found, initialize orgSarNo to 1
+                        $orgSarNo = 1;
+                  }
+               }
+            }
+      
+            // Set sarNo to 1 (this is always the case)
+            $sarNo = 1;
+      
+            //////////////////////////////////////////////////////
+            //////////    CALCULATIONS      //////////////////////
+            //////////////////////////////////////////////////////
+      
+            $qnty = (int) ($importedData['qty'] ?? 0); // Include quantity
+            $price = round((float) ($itemData['dftPrc'] ?? 0), 4); // Round price to 4 decimal places
+      
+            // Calculate individual amounts
+            $taxAmt = round((float) (($price/1.16)), 4); 
+            $taxblAmt = round((float) (($price/1.16)*0.16), 4); 
+            $totAmt = round((float) ($taxAmt+$taxblAmt), 4); 
+      
+            //////////////////////////////////////////////////////
+            //////////////////////////////////////////////////////
+      
+            // Create JSON payload without totals in itemList
+            $SaveItempayload = json_encode([
+               'tpin' => $itemData['tpin'],
+               'bhfId' => $itemData['bhfId'],
+               'sarTyCd' => "01",
+               'sarNo' => $sarNo,
+               'orgSarNo' => $orgSarNo,
+               'regTyCd' => "A",
+               'custTpin' => null,
+               'custNm' => null,
+               'custBhfId' => null,
+               'ocrnDt' => $importedData['dclDe'],
+               'totItemCnt' => 1, // Only one item
+               'totTaxblAmt' => $taxblAmt,
+               'totTaxAmt' => $taxAmt,
+               'totAmt' => $totAmt,
+               'remark' => $itemData['remark'] ?? null,
+               'regrId' => $itemData['regrId'],
+               'regrNm' => $itemData['regrNm'],
+               'modrNm' => $itemData['modrNm'],
+               'modrId' => $itemData['modrId'],
+               'itemList' => [
+                  [
+                     "itemSeq" => $importedData['itemSeq'],
+                     "itemNm" => $importedData['itemNm'],
+                     "itemClsCd" => $itemData['itemClsCd'],
+                     "itemCd" => $itemData['itemCd'],
+                     'pkgUnitCd' => $itemData['pkgUnitCd'] ?? '',
+                     'vatCatCd' => $itemData['vatCatCd'] ?? '',
+                     'qtyUnitCd' => $itemData['qtyUnitCd'] ?? '',
+                     'pkg' => (int) ($itemData['pkg'] ?? 0),
+                     'qty' => $qnty,
+                     'prc' => $price,
+                     'splyAmt' => round($qnty * $price, 4),
+                     'totDcAmt' => 0.0,
+                     'taxAmt' => $taxAmt,
+                     'taxblAmt' => $taxblAmt,
+                     'totAmt' => $totAmt,
+                     "remark" => $itemData['remark'] ?? null,
+                     "modrNm" => $itemData['modrNm'] ?? '',
+                     "modrId" => $itemData['modrId'] ?? ''
+                  ]
+               ]
+            ]);
+      
+            // Send the SaveItempayload to the console using JavaScript
+            echo "<script>console.log('SaveItempayload: ', " . json_encode($SaveItempayload) . ");</script>";
+      
+            // Initialize cURL session
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, 'http://localhost:8080/vsdc/stock/saveStockItems');
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $SaveItempayload);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+               'Content-Type: application/json',
+               'Content-Length: ' . strlen($SaveItempayload)
+            ]);
+      
+            // Execute the request and get the response
+            $response = curl_exec($ch);
+            if ($response === false) {
+               $message[] = 'Error on SaveItempayload: ' . curl_error($ch);
+            }
+      
+            // Close cURL session
+            curl_close($ch);
+      
+            // Decode the JSON response
+            $response_data = json_decode($response, true);
+      
+            // Check if the response is successful (resultCd = '000')
+            if (isset($response_data['resultCd']) && $response_data['resultCd'] === '000') {
+               // Prepare SQL statement for updating or inserting
+               $stmt = $conn->prepare("INSERT INTO zra_save_stock_item (
+                  tpin, bhfId, sarNo, sarTyCd, orgSarNo, regTyCd, custTpin, custNm, custBhfId, ocrnDt, 
+                  totItemCnt, totTaxblAmt, totTaxAmt, totAmount, remark, regrId, regrNm, modrNm, modrId,
+                  itemSeq, itemNm, itemCd, itemClsCd, pkgUnitCd, vatCatCd, qtyUnitCd, pkg, qty, prc, 
+                  splyAmt, totDcAmt, taxAmt, taxblAmt, totAmt
+               ) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) 
+               ON DUPLICATE KEY UPDATE 
+                  sarNo = VALUES(sarNo),
+                  sarTyCd = VALUES(sarTyCd),
+                  orgSarNo = VALUES(orgSarNo),
+                  regTyCd = VALUES(regTyCd),
+                  custTpin = VALUES(custTpin),
+                  custNm = VALUES(custNm),
+                  custBhfId = VALUES(custBhfId),
+                  ocrnDt = VALUES(ocrnDt),
+                  totItemCnt = VALUES(totItemCnt),
+                  totTaxblAmt = VALUES(totTaxblAmt),
+                  totTaxAmt = VALUES(totTaxAmt),
+                  totAmount = VALUES(totAmount),
+                  remark = VALUES(remark),
+                  regrId = VALUES(regrId),
+                  regrNm = VALUES(regrNm),
+                  modrNm = VALUES(modrNm),
+                  modrId = VALUES(modrId),
+                  itemSeq = VALUES(itemSeq),
+                  itemNm = VALUES(itemNm),
+                  itemCd = VALUES(itemCd),
+                  itemClsCd = VALUES(itemClsCd),
+                  pkgUnitCd = VALUES(pkgUnitCd),
+                  vatCatCd = VALUES(vatCatCd),
+                  qtyUnitCd = VALUES(qtyUnitCd),
+                  pkg = VALUES(pkg),
+                  qty = VALUES(qty),
+                  prc = VALUES(prc),
+                  splyAmt = VALUES(splyAmt),
+                  totDcAmt = VALUES(totDcAmt),
+                  taxAmt = VALUES(taxAmt),
+                  taxblAmt = VALUES(taxblAmt),
+                  totAmt = VALUES(totAmt)");
+      
+               if ($stmt === false) {
+                  $message[] = 'Error: Failed to prepare the SQL statement: ' . $conn->error;
+               } else {
+                  // Assign values to variables
+                  $stpin = $itemData['tpin'];
+                  $sbhfId = $itemData['bhfId'];
+                  $ssarNo = $sarNo;
+                  $ssarTyCd = "2";
+                  $sorgSarNo = $orgSarNo;
+                  $sregTyCd = "A";
+                  $scustTpin = null; // or provide the correct value
+                  $scustNm = null; // or provide the correct value
+                  $scustBhfId = null; // or provide the correct value
+                  $socrnDt = $importedData['dclDe'];
+                  $stotItemCnt = 1; // Since there's only one item
+                  $stotTaxblAmt = $taxblAmt;
+                  $stotTaxAmt = $taxAmt;
+                  $stotAmt = $totAmt;
+                  $sremark = $itemData['remark'] ?? null;
+                  $sregrId = $itemData['regrId'];
+                  $sregrNm = $itemData['regrNm'];
+                  $smodrNm = $itemData['modrNm'];
+                  $smodrId = $itemData['modrId'];
+                  $sitemSeq = $importedData['itemSeq'];
+                  $sitemNm = $importedData['itemNm'];
+                  $sitemCd = $itemData['itemCd'];
+                  $sitemClsCd = $itemData['itemClsCd'];
+                  $spkgUnitCd = $importedData['pkgUnitCd'];
+                  $svatCatCd = $itemData['vatCatCd'];
+                  $sqtyUnitCd = $importedData['qtyUnitCd'];
+                  $spkg = (int) ($importedData['pkg'] ?? 0);
+                  $sqty = $qnty;
+                  $sprc = $price;
+                  $ssplyAmt = $qnty * $price;
+                  $stotDcAmt = 0.0; // No discount in your case
+                  $staxAmt = $taxAmt;
+                  $staxblAmt = $taxblAmt;
+                  $stotAmt = $totAmt;
+
+                  // Bind and execute statement
+                  $stmt->bind_param('ssisisssssidddsssssissssssiidddddd',
+                     $stpin, $sbhfId, $ssarNo, $ssarTyCd,
+                     $sorgSarNo, $sregTyCd, $scustTpin, 
+                     $scustNm, $scustBhfId, $socrnDt, $stotItemCnt, $stotTaxblAmt, 
+                     $stotTaxAmt, $stotAmt, $sremark, $sregrId,
+                     $sregrNm, $smodrNm, $smodrId,
+                     $sitemSeq, $sitemNm, $sitemCd,
+                     $sitemClsCd, $spkgUnitCd, 
+                     $svatCatCd, $sqtyUnitCd,
+                     $spkg, $sqty, $sprc, 
+                     $ssplyAmt, $stotDcAmt, $staxAmt, $staxblAmt, $stotAmt
+                  );
+
+                  $stmt->execute();
+                  if ($stmt->error) {
+                     $message[] = 'Error: ' . $stmt->error;
+                  } else {
+                     $message[] = 'Data inserted/updated successfully.';
+                              // Update zra_stock_master to add the quantity (qty) to rsdQty if itemCd exists
+                           $updateStockQuery = "UPDATE zra_stock_master 
+                           SET rsdQty = rsdQty + ? 
+                           WHERE itemCd = ?";
+
+                           $stockStmt = $conn->prepare($updateStockQuery);
+                           if ($stockStmt === false) {
+                           $message[] = 'Error: Failed to prepare the stock update statement: ' . $conn->error;
+                           } else {
+                           // Bind the quantity and item code for updating
+                           $stockStmt->bind_param('ds', $importedData['qty'], $itemData['itemCd']);
+
+                           // Execute the update statement
+                           if (!$stockStmt->execute()) {
+                           $message[] = 'Error updating stock for item ' . $itemData['itemCd'] . ': ' . $stockStmt->error;
+                           } else {
+                           $message[] = 'Stock successfully updated for item: ' . $itemData['itemCd'];
+
+                           // Fetch the itemCd and updated rsdQty from the zra_stock_master table
+                           $fetchStockQuery = "SELECT rsdQty FROM zra_stock_master WHERE itemCd = ?";
+                           $fetchStockStmt = $conn->prepare($fetchStockQuery);
+                           if ($fetchStockStmt === false) {
+                           $message[] = 'Error: Failed to prepare the fetch statement: ' . $conn->error;
+                           } else {
+                           $fetchStockStmt->bind_param('s', $itemData['itemCd']);
+                           $fetchStockStmt->execute();
+                           $fetchStockStmt->bind_result($rsdQty);
+                           $fetchStockStmt->fetch();
+                           $fetchStockStmt->close();
+
+                           // Create the payload for saving stock master using fetched values
+                           $stockPayload = json_encode([
+                              'tpin' => $itemData['tpin'],
+                              'bhfId' => $itemData['bhfId'],
+                              'regrId' => $itemData['regrId'],
+                              'regrNm' => $itemData['regrNm'],
+                              'modrNm' => $itemData['modrNm'],
+                              'modrId' => $itemData['modrId'],
+                              'stockItemList' => [
+                                 [
+                                    'itemCd' => $itemData['itemCd'], // Use the itemCd from the current item
+                                    'rsdQty' => $rsdQty, // Use the fetched rsdQty from the database
+                                 ]
+                              ]
+                           ]);
+
+                           // Send the SaveItempayload to the console using JavaScript
+                           echo "<script>console.log('stockPayload: ', " . json_encode($stockPayload) . ");</script>";
+
+                           // Initialize cURL session
+                           $ch = curl_init();
+                           curl_setopt($ch, CURLOPT_URL, 'http://localhost:8080/vsdc/stockMaster/saveStockMaster');
+                           curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                           curl_setopt($ch, CURLOPT_POST, true);
+                           curl_setopt($ch, CURLOPT_POSTFIELDS, $stockPayload);
+                           curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                              'Content-Type: application/json',
+                              'Content-Length: ' . strlen($stockPayload)
+                           ]);
+
+                           // Execute the request and get the response
+                           $response = curl_exec($ch);
+                           if ($response === false) {
+                              $message[] = 'Error sending stock data: ' . curl_error($ch);
+                           } else {
+                              // Decode the JSON response
+                              $response_data = json_decode($response, true);
+
+                              // Check if the response is successful (resultCd = '000')
+                              if (isset($response_data['resultCd']) && $response_data['resultCd'] === '000') {
+                                 $message[] = 'Successfully sent stock master: ' . $item['itemCd'];
+                              } else {
+                                 $message[] = 'Failed to send Stock master: ' . $item['itemCd'];
+                              }
+                           }
+
+                           // Close cURL session
+                           curl_close($ch);
+                           }
+                           }
+
+                           // Close the stock statement
+                           $stockStmt->close();
+                           }
+                           }
+               }
+               $stmt->close();
+            }
+         }
+    } else {
+        $message[] = 'Error: Failed to process item.';
+        $message[] = 'Response: ' . $response; // Include raw response for debugging
+    }
+
+    echo json_encode(['message' => $message]);
+}

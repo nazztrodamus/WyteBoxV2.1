@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Setup Defaults</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; background-color: #eff2f5; margin: 0; padding: 20px; color: #36414c; }
+    .container { max-width: 600px; margin: 0 auto; }
+    h1 { font-size: 24px; font-weight: 600; color: #1f76c2; margin-bottom: 20px; }
+    .card { background: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05); padding: 20px; }
+    h2 { font-size: 18px; font-weight: 500; color: #5e6e82; margin-bottom: 15px; }
+    .form-group { margin-bottom: 15px; }
+    label { font-size: 14px; color: #36414c; margin-bottom: 5px; display: block; }
+    textarea, input { width: 100%; padding: 8px 12px; border: 1px solid #d0d7de; border-radius: 4px; font-size: 14px; box-sizing: border-box; }
+    textarea { height: 100px; resize: vertical; }
+    button { padding: 8px 16px; border: none; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; background-color: #1f76c2; color: #ffffff; }
+    button:hover { background-color: #165d9e; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Setup Defaults</h1>
+    <div class="card">
+      <div class="form-group">
+        <h2>Endpoints</h2>
+        <textarea id="endpoints">{"salesInvoice": "https://zra-vsdc-api/sales-invoice", "purchaseInvoice": "https://zra-vsdc-api/purchase-invoice", "items": "https://zra-vsdc-api/items", "stock": "https://zra-vsdc-api/stock", "imports": "https://zra-vsdc-api/imports"}</textarea>
+        <button onclick="saveEndpoints()">Save</button>
+      </div>
+      <div class="form-group">
+        <h2>Routes</h2>
+        <textarea id="routes">{"sales-invoice": "SalesInvoices", "purchase-invoice": "PurchaseInvoices", "items": "Items", "stock": "Stocks", "imports": "Imports"}</textarea>
+        <button onclick="saveRoutes()">Save</button>
+      </div>
+      <div class="form-group">
+        <h2>Security Key</h2>
+        <input id="securityKey" value="defaultKey123">
+        <button onclick="saveSecurityKey()">Save</button>
+      </div>
+      <div class="form-group">
+        <h2>Initialization Details</h2>
+        <input id="initUrl" value="https://zra-vsdc-init">
+        <button onclick="saveInitDetails()">Save</button>
+      </div>
+    </div>
+  </div>
+  <script src="./defaults.js"></script>
+</body>
+</html>

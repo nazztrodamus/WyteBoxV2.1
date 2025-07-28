@@ -1,0 +1,42 @@
+{
+  "name": "nodecon",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "nodemon server.js",
+    "electron": "electron .",
+    "build": "electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.7.2",
+    "axios": "^1.7.9",
+    "body-parser": "^1.20.3",
+    "cors": "^2.8.5",
+    "csv-writer": "^1.6.0",
+    "electron": "^34.5.0",
+    "electron-builder": "^25.1.8",
+    "electron-store": "^8.1.0",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "node-schedule": "^2.1.1",
+    "sequelize": "^6.37.5",
+    "sqlite3": "^5.1.7",
+    "winston": "^3.17.0",
+    "ws": "^8.18.1",
+    "xml2js": "^0.6.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9"
+  },
+  "build": {
+    "appId": "com.nodecon.middleware",
+    "productName": "nodeCon",
+    "win": {
+      "target": "nsis"
+    }
+  }
+}

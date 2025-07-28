@@ -1,0 +1,439 @@
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['invoice_id'])) {
+   $invoice_id = $_POST['invoice_id'];
+
+   // Prepare and execute the query to fetch invoice details securely using prepared statements
+   $stmt = $conn->prepare("SELECT * FROM zra_purchase_invoice WHERE id = ?");
+   $stmt->bind_param('i', $invoice_id);
+   $stmt->execute();
+   $invoiceResult = $stmt->get_result();
+   $invoiceData = $invoiceResult->fetch_assoc();
+   $stmt->close();
+
+   // Check if invoice data exists
+   if (!$invoiceData) {
+       echo "<script>
+           alert('Error: Invoice not found'); setTimeout(function() { window.location.href = '11124.php'; }, 5000);
+           </script>
+        ";
+       exit;
+   }
+
+   // Prepare and execute the query to fetch invoice items securely
+   $stmtItems = $conn->prepare("SELECT * FROM zra_purchase_invoice_items WHERE invoiceid = ?");
+   $stmtItems->bind_param('i', $invoice_id);
+   $stmtItems->execute();
+   $itemsResult = $stmtItems->get_result();
+   $invoiceItems = $itemsResult->fetch_all(MYSQLI_ASSOC);
+   $stmtItems->close();
+
+   // Determine payload based on rcptTyCd
+   $rcptTyCd = $invoiceData['rcptTyCd'];
+   $payload = [];
+
+  if ($rcptTyCd === 'P') {
+     // Construct the payload for 'P'
+     // Prepare the structured data for the payload
+     $itemList = [];
+     foreach ($invoiceItems as $item) {
+        $itemList[] = [
+              'itemSeq' => $item['itemSeq'],      // Replace with actual field names
+              'itemCd' => $item['itemCd'],        // Replace with actual field names
+              'itemClsCd' => $item['itemClsCd'],  // Replace with actual field names
+              'itemNm' => $item['itemNm'],        // Replace with actual field names
+              'bcd' => $item['bcd'],              // Replace with actual field names
+              'pkgUnitCd' => $item['pkgUnitCd'],  // Replace with actual field names
+              'pkg' => $item['pkg'],              // Replace with actual field names
+              'qtyUnitCd' => $item['qtyUnitCd'],  // Replace with actual field names
+              'qty' => $item['qty'],              // Replace with actual field names
+              'prc' => $item['prc'],              // Replace with actual field names
+              'splyAmt' => $item['splyAmt'],      // Replace with actual field names
+              'dcRt' => $item['dcRt'],            // Replace with actual field names
+              'dcAmt' => $item['dcAmt'],          // Replace with actual field names
+              'isrccCd' => $item['isrccCd'],      // Replace with actual field names
+              'isrccNm' => $item['isrccNm'],      // Replace with actual field names
+              'isrcRt' => $item['isrcRt'],        // Replace with actual field names
+              'isrcAmt' => $item['isrcAmt'],      // Replace with actual field names
+              'vatCatCd' => $item['vatCatCd'],    // Replace with actual field names
+              'exciseTxCatCd' => $item['exciseTxCatCd'], // Replace with actual field names
+              'tlCatCd' => $item['tlCatCd'],      // Replace with actual field names
+              'iplCatCd' => $item['iplCatCd'],    // Replace with actual field names
+              'taxblAmt' => $item['vatTaxblAmt'],  // Replace with actual field names
+              'taxAmt' => $item['vatAmt'],        // Replace with actual field names
+              'exciseTaxblAmt' => $item['exciseTaxblAmt'], // Replace with actual field names
+              'tlTaxblAmt' => $item['tlTaxblAmt'],    // Replace with actual field names
+              'iplTaxblAmt' => $item['iplTaxblAmt'],  // Replace with actual field names
+              'iplAmt' => $item['iplAmt'],        // Replace with actual field names
+              'tlAmt' => $item['tlAmt'],          // Replace with actual field names
+              'exciseTxAmt' => $item['exciseTxAmt'],  // Replace with actual field names
+              'totAmt' => $item['totAmt']         // Replace with actual field names
+        ];
+     }
+     // Prepare the final payload with invoice and item details
+     $payload = [
+        'tpin' => $invoiceData['tpin'],
+        'bhfId' => $invoiceData['bhfId'],
+        'orgInvcNo' => $invoiceData['orgInvcNo'],
+        'cisInvcNo' => $invoiceData['cisInvcNo'],
+        'spplrTpin' => $invoiceData['spplrTpin'],
+        'spplrBhfId' => $invoiceData['spplrBhfId'],
+        'spplrNm' => $invoiceData['spplrNm'],
+        'spplrInvcNo' => $invoiceData['spplrInvcNo'],
+        'regTyCd' => $invoiceData['regTyCd'],
+        'pchsTyCd' => $invoiceData['pchsTyCd'],
+        'rcptTyCd' => $invoiceData['rcptTyCd'],
+        'pmtTyCd' => $invoiceData['pmtTyCd'],
+        'pchsSttsCd' => $invoiceData['pchsSttsCd'],
+        'cfmDt' => $invoiceData['cfmDt'],
+        'pchsDt' => $invoiceData['pchsDt'],
+        'cnclReqDt' => $invoiceData['cnclReqDt'],
+        'cnclDt' => $invoiceData['cnclDt'],
+        'totItemCnt' => $invoiceData['totItemCnt'],
+        'totTaxblAmt' => $invoiceData['totTaxblAmt'],
+        'totTaxAmt' => $invoiceData['totTaxAmt'],
+        'totAmt' => $invoiceData['totAmt'],
+        'remark' => $invoiceData['remark'],
+        'regrId' => $invoiceData['regrId'],
+        'regrNm' => $invoiceData['regrNm'],
+        'modrId' => $invoiceData['modrId'],
+        'modrNm' => $invoiceData['modrNm'],
+        'itemList' => $itemList  // Include item details
+     ];
+  } elseif ($rcptTyCd === 'D') {
+     // Construct the payload for 'R'
+     // Prepare the structured data for the payload
+     $itemList = [];
+        foreach ($invoiceItems as $item) {
+           $itemList[] = [
+                 'itemSeq' => $item['itemSeq'],      // Replace with actual field names
+                 'itemCd' => $item['itemCd'],        // Replace with actual field names
+                 'itemClsCd' => $item['itemClsCd'],  // Replace with actual field names
+                 'itemNm' => $item['itemNm'],        // Replace with actual field names
+                 'bcd' => $item['bcd'],              // Replace with actual field names
+                 'pkgUnitCd' => $item['pkgUnitCd'],  // Replace with actual field names
+                 'pkg' => $item['pkg'],              // Replace with actual field names
+                 'qtyUnitCd' => $item['qtyUnitCd'],  // Replace with actual field names
+                 'qty' => $item['qty'],              // Replace with actual field names
+                 'prc' => $item['prc'],              // Replace with actual field names
+                 'splyAmt' => $item['splyAmt'],      // Replace with actual field names
+                 'dcRt' => $item['dcRt'],            // Replace with actual field names
+                 'dcAmt' => $item['dcAmt'],          // Replace with actual field names
+                 'isrccCd' => $item['isrccCd'],      // Replace with actual field names
+                 'isrccNm' => $item['isrccNm'],      // Replace with actual field names
+                 'isrcRt' => $item['isrcRt'],        // Replace with actual field names
+                 'isrcAmt' => $item['isrcAmt'],      // Replace with actual field names
+                 'vatCatCd' => $item['vatCatCd'],    // Replace with actual field names
+                 'exciseTxCatCd' => $item['exciseTxCatCd'], // Replace with actual field names
+                 'tlCatCd' => $item['tlCatCd'],      // Replace with actual field names
+                 'iplCatCd' => $item['iplCatCd'],    // Replace with actual field names
+                 'taxblAmt' => $item['vatTaxblAmt'],  // Replace with actual field names
+                 'taxAmt' => $item['vatAmt'],        // Replace with actual field names
+                 'exciseTaxblAmt' => $item['exciseTaxblAmt'], // Replace with actual field names
+                 'tlTaxblAmt' => $item['tlTaxblAmt'],    // Replace with actual field names
+                 'iplTaxblAmt' => $item['iplTaxblAmt'],  // Replace with actual field names
+                 'iplAmt' => $item['iplAmt'],        // Replace with actual field names
+                 'tlAmt' => $item['tlAmt'],          // Replace with actual field names
+                 'exciseTxAmt' => $item['exciseTxAmt'],  // Replace with actual field names
+                 'totAmt' => $item['totAmt']         // Replace with actual field names
+           ];
+        }
+     // Prepare the final payload with invoice and item details
+     $payload = [
+        'tpin' => $invoiceData['tpin'],
+        'bhfId' => $invoiceData['bhfId'],
+        'orgSdcId' => $invoiceData['orgSdcId'],
+        'orgInvcNo' => $invoiceData['orgInvcNo'],
+        'cisInvcNo' => $invoiceData['cisInvcNo'],
+        'custTpin' => $invoiceData['custTpin'],
+        'custNm' => $invoiceData['custNm'],
+        'salesTyCd' => $invoiceData['salesTyCd'],
+        'rcptTyCd' => $invoiceData['rcptTyCd'],
+        'pmtTyCd' => $invoiceData['pmtTyCd'],
+        'salesSttsCd' => $invoiceData['salesSttsCd'],
+        'cfmDt' => $invoiceData['cfmDt'],
+        'salesDt' => $invoiceData['salesDt'],
+        'stockRlsDt' => $invoiceData['stockRlsDt'],
+        'cnclReqDt' => $invoiceData['cnclReqDt'],
+        'cnclDt' => $invoiceData['cnclDt'],
+        'rfdDt' => $invoiceData['rfdDt'],
+        'rfdRsnCd' => $invoiceData['dbtRsnCd'],
+        'totItemCnt' => $invoiceData['totItemCnt'],
+        'taxblAmtA' => $invoiceData['taxblAmtA'],
+        'taxblAmtB' => $invoiceData['taxblAmtB'],
+        'taxblAmtC1' => $invoiceData['taxblAmtC1'],
+        'taxblAmtC2' => $invoiceData['taxblAmtC2'],
+        'taxblAmtC3' => $invoiceData['taxblAmtC3'],
+        'taxblAmtD' => $invoiceData['taxblAmtD'],
+        'taxblAmtRvat' => $invoiceData['taxblAmtRvat'],
+        'taxblAmtE' => $invoiceData['taxblAmtE'],
+        'taxblAmtF' => $invoiceData['taxblAmtF'],
+        'taxblAmtIpl1' => $invoiceData['taxblAmtIpl1'],
+        'taxblAmtIpl2' => $invoiceData['taxblAmtIpl2'],
+        'taxblAmtTl' => $invoiceData['taxblAmtTl'],
+        'taxblAmtEcm' => $invoiceData['taxblAmtEcm'],
+        'taxblAmtExeeg' => $invoiceData['taxblAmtExeeg'],
+        'taxblAmtTot' => $invoiceData['taxblAmtTot'],
+        'taxRtA' => $invoiceData['taxRtA'],
+        'taxRtB' => $invoiceData['taxRtB'],
+        'taxRtC1' => $invoiceData['taxRtC1'],
+        'taxRtC2' => $invoiceData['taxRtC2'],
+        'taxRtC3' => $invoiceData['taxRtC3'],
+        'taxRtD' => $invoiceData['taxRtD'],
+        'tlAmt' => $invoiceData['tlAmt'],
+        'taxRtRvat' => $invoiceData['taxRtRvat'],
+        'taxRtE' => $invoiceData['taxRtE'],
+        'taxRtF' => $invoiceData['taxRtF'],
+        'taxRtIpl1' => $invoiceData['taxRtIpl1'],
+        'taxRtIpl2' => $invoiceData['taxRtIpl2'],
+        'taxRtTl' => $invoiceData['taxRtTl'],
+        'taxRtEcm' => $invoiceData['taxRtEcm'],
+        'taxRtExeeg' => $invoiceData['taxRtExeeg'],
+        'taxRtTot' => $invoiceData['taxRtTot'],
+        'taxAmtA' => $invoiceData['taxAmtA'],
+        'taxAmtB' => $invoiceData['taxAmtB'],
+        'taxAmtC1' => $invoiceData['taxAmtC1'],
+        'taxAmtC2' => $invoiceData['taxAmtC2'],
+        'taxAmtC3' => $invoiceData['taxAmtC3'],
+        'taxAmtD' => $invoiceData['taxAmtD'],
+        'taxAmtRvat' => $invoiceData['taxAmtRvat'],
+        'taxAmtE' => $invoiceData['taxAmtE'],
+        'taxAmtF' => $invoiceData['taxAmtF'],
+        'taxAmtIpl1' => $invoiceData['taxAmtIpl1'],
+        'taxAmtIpl2' => $invoiceData['taxAmtIpl2'],
+        'taxAmtTl' => $invoiceData['taxAmtTl'],
+        'taxAmtEcm' => $invoiceData['taxAmtEcm'],
+        'taxAmtExeeg' => $invoiceData['taxAmtExeeg'],
+        'taxAmtTot' => $invoiceData['taxAmtTot'],
+        'totTaxblAmt' => $invoiceData['totTaxblAmt'],
+        'totTaxAmt' => $invoiceData['totTaxAmt'],
+        'cashDcRt' => $invoiceData['cashDcRt'],
+        'cashDcAmt' => $invoiceData['cashDcAmt'],
+        'totAmt' => $invoiceData['totAmt'],
+        'prchrAcptcYn' => $invoiceData['prchrAcptcYn'],
+        'remark' => $invoiceData['remark'],
+        'regrId' => $invoiceData['regrId'],
+        'regrNm' => $invoiceData['regrNm'],
+        'modrId' => $invoiceData['modrId'],
+        'modrNm' => $invoiceData['modrNm'],
+        'saleCtyCd' => $invoiceData['saleCtyCd'],
+        'lpoNumber' => $invoiceData['lpoNumber'] === "" ? null : $invoiceData['lpoNumber'],
+        'currencyTyCd' => $invoiceData['currencyTyCd'],
+        'exchangeRt' => round($invoiceData['exchangeRt'], 2),
+        'destnCountryCd' => $invoiceData['destnCountryCd'],
+        'dbtRsnCd' => null,
+        'invcAdjustReason' => $invoiceData['invcAdjustReason'],
+        'itemList' => $itemList  // Include item details
+     ];
+ }  elseif ($rcptTyCd === 'A') {
+  // Construct the payload for 'D'
+  // Prepare the structured data for the payload
+  $itemList = [];
+     foreach ($invoiceItems as $item) {
+        $itemList[] = [
+              'itemSeq' => $item['itemSeq'],      // Replace with actual field names
+              'itemCd' => $item['itemCd'],        // Replace with actual field names
+              'itemClsCd' => $item['itemClsCd'],  // Replace with actual field names
+              'itemNm' => $item['itemNm'],        // Replace with actual field names
+              'bcd' => $item['bcd'],              // Replace with actual field names
+              'pkgUnitCd' => $item['pkgUnitCd'],  // Replace with actual field names
+              'pkg' => $item['pkg'],              // Replace with actual field names
+              'qtyUnitCd' => $item['qtyUnitCd'],  // Replace with actual field names
+              'qty' => $item['qty'],              // Replace with actual field names
+              'prc' => $item['prc'],              // Replace with actual field names
+              'splyAmt' => $item['splyAmt'],      // Replace with actual field names
+              'dcRt' => $item['dcRt'],            // Replace with actual field names
+              'dcAmt' => $item['dcAmt'],          // Replace with actual field names
+              'isrccCd' => $item['isrccCd'],      // Replace with actual field names
+              'isrccNm' => $item['isrccNm'],      // Replace with actual field names
+              'isrcRt' => $item['isrcRt'],        // Replace with actual field names
+              'isrcAmt' => $item['isrcAmt'],      // Replace with actual field names
+              'vatCatCd' => $item['vatCatCd'],    // Replace with actual field names
+              'exciseTxCatCd' => $item['exciseTxCatCd'], // Replace with actual field names
+              'tlCatCd' => $item['tlCatCd'],      // Replace with actual field names
+              'iplCatCd' => $item['iplCatCd'],    // Replace with actual field names
+              'vatTaxblAmt' => $item['vatTaxblAmt'],  // Replace with actual field names
+              'vatAmt' => $item['vatAmt'],        // Replace with actual field names
+              'exciseTaxblAmt' => $item['exciseTaxblAmt'], // Replace with actual field names
+              'tlTaxblAmt' => $item['tlTaxblAmt'],    // Replace with actual field names
+              'iplTaxblAmt' => $item['iplTaxblAmt'],  // Replace with actual field names
+              'iplAmt' => $item['iplAmt'],        // Replace with actual field names
+              'tlAmt' => $item['tlAmt'],          // Replace with actual field names
+              'exciseTxAmt' => $item['exciseTxAmt'],  // Replace with actual field names
+              'totAmt' => $item['totAmt']         // Replace with actual field names
+        ];
+     }
+  // Prepare the final payload with invoice and item details
+  $payload = [
+     'tpin' => $invoiceData['tpin'],
+     'bhfId' => $invoiceData['bhfId'],
+     'orgSdcId' => $invoiceData['orgSdcId'],
+     'orgInvcNo' => $invoiceData['orgInvcNo'],
+     'cisInvcNo' => $invoiceData['cisInvcNo'],
+     'custTpin' => $invoiceData['custTpin'],
+     'custNm' => $invoiceData['custNm'],
+     'salesTyCd' => $invoiceData['salesTyCd'],
+     'rcptTyCd' => $invoiceData['rcptTyCd'],
+     'pmtTyCd' => $invoiceData['pmtTyCd'],
+     'salesSttsCd' => $invoiceData['salesSttsCd'],
+     'cfmDt' => $invoiceData['cfmDt'],
+     'salesDt' => $invoiceData['salesDt'],
+     'stockRlsDt' => $invoiceData['stockRlsDt'],
+     'cnclReqDt' => $invoiceData['cnclReqDt'],
+     'cnclDt' => $invoiceData['cnclDt'],
+     'rfdDt' => $invoiceData['rfdDt'],
+     'rfdRsnCd' => null,
+     'totItemCnt' => $invoiceData['totItemCnt'],
+     'taxblAmtA' => $invoiceData['taxblAmtA'],
+     'taxblAmtB' => $invoiceData['taxblAmtB'],
+     'taxblAmtC1' => $invoiceData['taxblAmtC1'],
+     'taxblAmtC2' => $invoiceData['taxblAmtC2'],
+     'taxblAmtC3' => $invoiceData['taxblAmtC3'],
+     'taxblAmtD' => $invoiceData['taxblAmtD'],
+     'taxblAmtRvat' => $invoiceData['taxblAmtRvat'],
+     'taxblAmtE' => $invoiceData['taxblAmtE'],
+     'taxblAmtF' => $invoiceData['taxblAmtF'],
+     'taxblAmtIpl1' => $invoiceData['taxblAmtIpl1'],
+     'taxblAmtIpl2' => $invoiceData['taxblAmtIpl2'],
+     'taxblAmtTl' => $invoiceData['taxblAmtTl'],
+     'taxblAmtEcm' => $invoiceData['taxblAmtEcm'],
+     'taxblAmtExeeg' => $invoiceData['taxblAmtExeeg'],
+     'taxblAmtTot' => $invoiceData['taxblAmtTot'],
+     'taxRtA' => $invoiceData['taxRtA'],
+     'taxRtB' => $invoiceData['taxRtB'],
+     'taxRtC1' => $invoiceData['taxRtC1'],
+     'taxRtC2' => $invoiceData['taxRtC2'],
+     'taxRtC3' => $invoiceData['taxRtC3'],
+     'taxRtD' => $invoiceData['taxRtD'],
+     'tlAmt' => $invoiceData['tlAmt'],
+     'taxRtRvat' => $invoiceData['taxRtRvat'],
+     'taxRtE' => $invoiceData['taxRtE'],
+     'taxRtF' => $invoiceData['taxRtF'],
+     'taxRtIpl1' => $invoiceData['taxRtIpl1'],
+     'taxRtIpl2' => $invoiceData['taxRtIpl2'],
+     'taxRtTl' => $invoiceData['taxRtTl'],
+     'taxRtEcm' => $invoiceData['taxRtEcm'],
+     'taxRtExeeg' => $invoiceData['taxRtExeeg'],
+     'taxRtTot' => $invoiceData['taxRtTot'],
+     'taxAmtA' => $invoiceData['taxAmtA'],
+     'taxAmtB' => $invoiceData['taxAmtB'],
+     'taxAmtC1' => $invoiceData['taxAmtC1'],
+     'taxAmtC2' => $invoiceData['taxAmtC2'],
+     'taxAmtC3' => $invoiceData['taxAmtC3'],
+     'taxAmtD' => $invoiceData['taxAmtD'],
+     'taxAmtRvat' => $invoiceData['taxAmtRvat'],
+     'taxAmtE' => $invoiceData['taxAmtE'],
+     'taxAmtF' => $invoiceData['taxAmtF'],
+     'taxAmtIpl1' => $invoiceData['taxAmtIpl1'],
+     'taxAmtIpl2' => $invoiceData['taxAmtIpl2'],
+     'taxAmtTl' => $invoiceData['taxAmtTl'],
+     'taxAmtEcm' => $invoiceData['taxAmtEcm'],
+     'taxAmtExeeg' => $invoiceData['taxAmtExeeg'],
+     'taxAmtTot' => $invoiceData['taxAmtTot'],
+     'totTaxblAmt' => $invoiceData['totTaxblAmt'],
+     'totTaxAmt' => $invoiceData['totTaxAmt'],
+     'cashDcRt' => $invoiceData['cashDcRt'],
+     'cashDcAmt' => $invoiceData['cashDcAmt'],
+     'totAmt' => $invoiceData['totAmt'],
+     'prchrAcptcYn' => $invoiceData['prchrAcptcYn'],
+     'remark' => $invoiceData['remark'],
+     'regrId' => $invoiceData['regrId'],
+     'regrNm' => $invoiceData['regrNm'],
+     'modrId' => $invoiceData['modrId'],
+     'modrNm' => $invoiceData['modrNm'],
+     'saleCtyCd' => $invoiceData['saleCtyCd'],
+     'lpoNumber' => $invoiceData['lpoNumber'] === "" ? null : $invoiceData['lpoNumber'],
+     'currencyTyCd' => $invoiceData['currencyTyCd'],
+     'exchangeRt' => round($invoiceData['exchangeRt'], 2),
+     'destnCountryCd' => $invoiceData['destnCountryCd'],
+     'dbtRsnCd' => $invoiceData['dbtRsnCd'],
+     'invcAdjustReason' => $invoiceData['invcAdjustReason'],
+     'itemList' => $itemList  // Include item details
+  ];
+}
+  
+
+     
+   echo json_encode($payload);
+   
+   // Encode the payload into JSON
+   $jsonPayload = json_encode($payload);
+   
+   // Send the request to the ZRA endpoint
+   $url = 'http://localhost:8080/vsdc/trnsPurchase/savePurchase'; // Replace with actual ZRA endpoint
+   $ch = curl_init($url);
+   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+   curl_setopt($ch, CURLOPT_POST, true);
+   curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonPayload);
+   curl_setopt($ch, CURLOPT_HTTPHEADER, [
+       'Content-Type: application/json',
+       'Content-Length: ' . strlen($jsonPayload),
+   ]);
+
+   // Execute the cURL request
+   $response = curl_exec($ch);
+   $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+   curl_close($ch);
+
+   // Decode the response
+   $responseData = json_decode($response, true);
+   
+   // Check if the response was successful
+if ($httpCode === 200 && isset($responseData['resultCd'])) {
+  if ($responseData['resultCd'] === '000') {
+      // Success: Update the necessary fields in the database
+      $stmtUpdate = $conn->prepare("
+        UPDATE zra_purchase_invoice 
+        SET prcd = 1, 
+           rcptNo = ?, 
+           intrlData = ?, 
+           rcptSign = ?, 
+           vsdcRcptPbctDate = ?, 
+           sdcId = ?, 
+           mrcNo = ?, 
+           qrCodeUrl = ?
+        WHERE id = ?
+     ");
+     
+     // Bind parameters from the JSON response
+     $stmtUpdate->bind_param('issssssi', 
+        $responseData['data']['rcptNo'], 
+        $responseData['data']['intrlData'], 
+        $responseData['data']['rcptSign'], 
+        $responseData['data']['vsdcRcptPbctDate'], 
+        $responseData['data']['sdcId'], 
+        $responseData['data']['mrcNo'], 
+        $responseData['data']['qrCodeUrl'], 
+        $invoice_id
+     );
+     
+     // Execute the query
+     $stmtUpdate->execute();
+     $stmtUpdate->close();
+
+     // Prepare the HTML message
+     $htmlMessage = '
+           <div style="padding: 20px; background-color: #d4edda; border: 1px solid #c3e6cb; border-radius: 5px; color: #155724; font-family: Arial, sans-serif; margin-bottom: 15px;">
+              <h4>Invoice sent successfully!</h4>
+              <p>Your invoice has been successfully submitted to ZRA.</p>
+              <a href="11127.php" style="display: inline-block; padding: 10px 20px; background-color: #007bff; color: white; text-decoration: none; border-radius: 5px; font-size: 16px;">Print Invoice</a>
+           </div>
+     ';
+
+     // Send the HTML content directly
+     echo $htmlMessage;
+  } else {
+      // Handle the error from the response
+      $errorMsg = isset($responseData['resultMsg']) ? $responseData['resultMsg'] : 'Unknown error';
+      echo json_encode(['status' => 'error', 'message' => $errorMsg]);
+  }
+} else {
+  // Handle HTTP error
+  echo json_encode(['status' => 'error', 'message' => 'Failed to connect to ZRA API.']);
+}
+
+   exit; // Stop further script execution
+}
+
+
+
+
+

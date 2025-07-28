@@ -1,0 +1,28 @@
+IN-000001065	19/08/2024	19/08/2024	26/08/2024	FALSE		orbs-user	NIE0113	Choppies Superstores- Chipata	Choppies Superstores- Chipata	Choppies Superstores- Chipata	3016110000343	3665.48	586.48			4251.96	FALSE		FALSE	FALSE			ZMW	FALSE	0	0	0	0	1	30 Days From Invoice														19/08/2024	19/08/2024	0	0	0			" <!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Transitional//EN"" ""http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"">
+<html xmlns=""http://www.w3.org/1999/xhtml"">
+	<head>
+		<meta http-equiv=""Content-Type"" content=""text/html; charset=utf-8"" /><title>
+		</title>
+		<style type=""text/css"">
+			.cs2654AE3A{text-align:left;text-indent:0pt;margin:0pt 0pt 0pt 0pt}
+			.csC8F6D76{color:#000000;background-color:transparent;font-family:Calibri;font-size:11pt;font-weight:normal;font-style:normal;}
+		</style>
+	</head>
+	<body>
+		<p class=""cs2654AE3A""><span class=""csC8F6D76"">&nbsp;</span></p></body>
+</html>
+"	1	25148	Premium Black Tea 25s 1*48	FINI-GOODS	3	EA	680.16	2040.48	326.48	680.16	2040.48	A	0	0	0	0	0																			0	0	0	FALSE	0	0	FALSE
+IN-000001065	19/08/2024	19/08/2024	26/08/2024	FALSE		orbs-user	NIE0113	Choppies Superstores- Chipata	Choppies Superstores- Chipata	Choppies Superstores- Chipata	3016110000343	3665.48	586.48			4251.96	FALSE		FALSE	FALSE			ZMW	FALSE	0	0	0	0	1	30 Days From Invoice														19/08/2024	19/08/2024	0	0	0			" <!DOCTYPE html PUBLIC ""-//W3C//DTD XHTML 1.0 Transitional//EN"" ""http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"">
+<html xmlns=""http://www.w3.org/1999/xhtml"">
+	<head>
+		<meta http-equiv=""Content-Type"" content=""text/html; charset=utf-8"" /><title>
+		</title>
+		<style type=""text/css"">
+			.cs2654AE3A{text-align:left;text-indent:0pt;margin:0pt 0pt 0pt 0pt}
+			.csC8F6D76{color:#000000;background-color:transparent;font-family:Calibri;font-size:11pt;font-weight:normal;font-style:normal;}
+		</style>
+	</head>
+	<body>
+		<p class=""cs2654AE3A""><span class=""csC8F6D76"">&nbsp;</span></p></body>
+</html>
+"	2	K124	Kombucha 1*24	FINI-GOODS	10	EA	162.5	1625	260	162.5	1625	A	0	0	0	0	0																			0	0	0	FALSE	0	0	FALSE

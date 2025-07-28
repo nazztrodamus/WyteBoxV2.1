@@ -1,0 +1,268 @@
+
+
+
+
+
+
+WyteBox
+Technical Specification Document
+
+
+
+
+
+
+
+
+
+Overview
+WyteBox is a middleware application that acts as a secure and auditable bridge between Microsoft Dynamics API and ZRA's VSDC API. It handles data reception, validation, transformation, storage, synchronization, and logging. It features a professional and modern UI built with React, using Lucide icons, and stores data using SQLite.
+Architecture
+Core Modules
+1.	API Gateway
+o	Receives JSON payloads from Dynamics
+o	Sends/receives JSON to/from VSDC
+o	Includes security validation headers
+2.	SQLite Engine
+o	Stores all data dynamically: Items, Customers, Invoices, Logs, etc.
+3.	UI Application
+o	Clean modern interface for configuration, monitoring, and manual operations
+4.	Sync Engine
+o	Handles automatic data syncs with VSDC
+5.	Logger
+o	Tracks every system event (API call, DB save, error, etc.)
+________________________________________
+Modules & Screens
+1. Dashboard
+Purpose: Overview of system health and key stats
+•	System Status: VSDC Connected / Internet OK
+•	Initialization State
+•	Summary:
+	Items
+	Customers
+	Invoices
+	Purchases / Imports
+•	System Performance (basic metrics)
+•	Recent Activity (last 10 logs)
+2. Device Initialization
+Purpose: Initialize connection to VSDC
+•	Fields:
+	TPIN
+	Branch ID
+	Device Serial Number
+•	Action:
+	Init button triggers POST /initializer/selectInitInfo
+•	On success, saves data and sets VSDC status to Connected
+3. Sync Settings
+Each sub-feature has its own page and uses the following model:
+•	Last Sync Timestamp
+•	Total Items Synced
+•	Manual Sync Trigger
+•	Daily Sync Job
+a. Get Standard Codes
+Endpoint: /code/selectCodes
+b. Get Classification Codes
+Endpoint: /itemClass/selectItemsClass
+c. Get Notices
+Endpoint: /notices/selectNotices
+d. Get Branches
+Endpoint: /branches/selectBranches
+e. Save Branch User
+•	Form to create user
+•	POST to /branches/saveBrancheUser
+•	Saved with Boolean = 0; on resultCd = 000, set to 1
+•	Resubmission and error viewing supported
+f. Get Customers
+Endpoint: /customers/selectCustomer
+g. Save Customers
+•	Form input
+•	POST /branches/saveBrancheCustomers
+•	Similar logic as Save Branch User
+4. Items
+Purpose: View, filter, sync, and manage inventory
+•	Receive from Dynamics: /api/items/submit
+•	Validate JSON structure
+•	Check if item exists (by itemCd)
+•	Save to DB (Boolean 0), send to /items/saveItem
+•	On resultCd = 000, respond success, set Boolean 1
+•	On error: respond with error and keep Boolean 0
+•	Include stock management
+5. View Invoices
+Types: Sales, Credit Note, Purchase, Partial Credit Note
+•	Receive via /api/invoice/submit
+•	Validate payload
+•	Check item IDs exist + stock check (skip for services)
+•	Save to DB (Boolean 0)
+•	Send to VSDC
+o	Example endpoints:
+	/trnsSales/saveSales
+	/trnsSales/saveCreditNote
+	/trnsSales/saveFinalInvoice
+•	Response:
+o	resultCd == 000: save VSDC data, respond with receipt & QR
+o	resultCd != 000: log error, respond with message
+o	No response: respond "VSDC not reachable" and delete record
+•	Update stock after success + sync to VSDC stock endpoints
+6. Reports
+•	Invoice Reports
+o	Sales / Credit / Purchase
+•	Items Reports
+o	Stock report
+•	Export to Excel/PDF
+•	Search and filter
+7. Imports & Purchases
+•	Daily Sync from VSDC:
+o	/imports/selectImportList
+o	/purchases/selectPurchaseList
+•	Save to DB with status: Unprocessed, Approved, Rejected
+•	Approval Process:
+o	Ensure item exists in DB
+o	If not: block and show error
+o	If matchable: allow user to map ItemNm
+o	On approval: update DB stock, send:
+	/stocks/saveStockItem
+	/stocks/saveStockMaster
+o	Log the reason for stock update
+8. Logs
+•	Log Types: Success, Error, Submission, Export, Change
+•	Tracked Fields:
+o	Event Name
+o	Endpoint
+o	Payload
+o	Response
+o	Timestamp
+o	Status
+•	Searchable / Exportable
+9. Settings
+•	Configure:
+o	VSDC Base URL
+o	Header Key
+o	VSDC Endpoints
+o	Cron sync settings
+•	Set API Key for Dynamics Header Verification
+________________________________________
+Communication Endpoints
+🔁 Dynamics → WyteBox
+/api/items/submit
+Payload:
+{
+  "itemCd": "P001",
+  "itemNm": "Panadol",
+  "qty": 10,
+  "clsCode": "43191501",
+  "pkgUnitCd": "BOX",
+  "qtyUnitCd": "U",
+  "vatCatCd": "A",
+  "price": 15.5,
+  "origin": "ZM"
+}
+Response:
+•	{"status": "exists"}
+•	{"status": "error", "message": "Missing xyz"}
+•	{"status": "success"}
+________________________________________
+/api/invoice/submit
+Payload:
+{
+  "invoiceNo": "INV001",
+  "invoiceType": "SALE",
+  "customerTpin": "2000000000",
+  "branchId": "000",
+  "items": [
+    {"itemCd": "P001", "qty": 2, "unitPrice": 15.5}
+  ],
+  "totalAmount": 31.0,
+  "dateIssued": "2025-07-14T08:00:00Z"
+}
+Response:
+•	Success:
+{
+  "status": "success",
+  "data": {
+    "rcptNo": 1,
+    "intrlData": "QHRQAUCJVLRSLSFYVLFYN4FHR4",
+    "rcptSign": "BSFCQEFAAVTC4B3D",
+    "vsdcRcptPbctDate": "20250425144131",
+    "sdcId": "SDC0010002520",
+    "mrcNo": "WIS00003489",
+    "qrCodeUrl": "https://sandboxportal.zra.org.zm/common/link/ebm/receipt/indexEbmReceiptData?Data=2001179764000BSFCQEFAAVTC4B3D"
+  }
+}
+•	Failure: {"status": "error", "message": "Item does not exist or stock insufficient"}
+•	VSDC unreachable: {"status": "error", "message": "VSDC not reachable"}
+________________________________________
+🔁 WyteBox → VSDC
+Device Initialization
+•	Endpoint: /initializer/selectInitInfo
+•	Payload:
+{
+  "tpin": "1000000000",
+  "bhfId": "000",
+  "dvcSrlNo": "20180520000000"
+}
+Standard Codes
+•	Endpoint: /code/selectCodes
+•	Payload:
+{
+  "tpin": "1000000000",
+  "bhfId": "000",
+  "lastReqDt": "20231215000000"
+}
+Classification Codes
+•	Endpoint: /itemClass/selectItemsClass
+•	Similar payload structure as above
+Save Item
+•	Endpoint: /items/saveItem
+•	Payload from WyteBox DB transformed JSON
+Save Sales Invoice
+•	Endpoint: /trnsSales/saveSales
+•	Payload:
+{
+  "tpin": "1000000000",
+  "bhfId": "000",
+  "custTpin": "2000000000",
+  "itemList": [...],
+  "totalAmt": 500,
+  ...
+}
+Save Stock
+•	Endpoints:
+o	/stocks/saveStockItem
+o	/stocks/saveStockMaster
+•	Payload includes updated stock quantities per item
+________________________________________
+Database Structure (SQLite)
+Each major section will have its own table with auto-generated structure:
+•	items
+•	invoices
+•	purchases
+•	imports
+•	logs
+•	settings
+•	customers
+•	branch_users
+•	stock_transactions
+________________________________________
+Security
+•	Every payload from Dynamics must include header:
+Authorization: Bearer <secure_key>
+•	WyteBox strips and verifies this header before accepting data
+________________________________________
+UI
+•	Built with React + Lucide icons
+•	Responsive, clean layout
+•	Top Nav:
+o	VSDC Status: Green/Red
+o	Internet Check: Green/Red
+•	Side Nav:
+o	Dashboard
+o	Device Init
+o	Sync Settings
+o	Items
+o	View Invoices
+o	Reports
+o	Imports
+o	Purchases
+o	Logs
+o	Settings
+
